@@ -1,0 +1,45 @@
+//Just initializing the values to what they normally be, when you make the function call.
+ld af,33C0
+ld bc,0000
+ld de,C6E0
+ld hl,C660
+
+//Normal call into DB6C
+push hl
+
+
+//Normal call into DB4D
+push hl
+push bc
+ld c,(hl)
+inc hl
+ld b,(hl)
+inc hl
+inc hl
+inc hl
+inc hl
+dec bc
+dec bc
+dec bc
+dec bc
+ld de,5AA5
+ld a,(hl)
+xor d
+ld d,a
+ldi a,(hl)
+add e
+ld e,a
+dec bc
+ld a,c
+or b
+jr nz,DB5E
+pop bc
+pop hl
+//Normal return from DB4D
+inc hl
+inc hl
+ld (hl),e
+inc hl
+ld (hl),d
+pop hl
+//Normal return from DB6C

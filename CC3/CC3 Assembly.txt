@@ -1,0 +1,91 @@
+mainB602()
+{
+	//Set values to what they are upon jumping into B602.
+	ld	af,05C0
+	ld	bc,0000
+	ld	de,B56C
+	ld	hl,D0E0
+
+	//Normal entry point.
+	ld	hl,B780
+	ld	de,C660
+	ld	bc,0080
+	call	stringCopy00B1
+	ld	c,19
+	:B610
+	ld	a,(D0E9)
+	ld	b,a
+	call	B63F
+	dec	c
+	jr	nz,B610
+	call	B656
+	ld	de, C660
+	ld	hl,9600
+	ld	bc,0110
+	call	1636
+	ld	hl,C40B
+	ld	bc,0404
+	call	16F0
+	call	AE44
+	ld	hl,C420
+	ld	de,B800
+	call AE92
+	ret
+}
+
+manipulateKeyB656()
+{
+	ld	hl,D0E0
+	ld	c,80
+	ld	de,C660
+	:B65E
+	ld	a,(de)
+	xor	(hl)
+	ld	(de),a
+	inc	de
+	ld	a,(hl)
+	call	B673
+	ldi	(hl),a
+	ld	a,l
+	cp	a,EA
+	jr	nz,B66F
+	ld	hl,D0E0
+	:B66F
+	dec	C
+	jr	nz,B65E
+	ret
+}
+
+manipulateKeyB63F
+{
+	push	bc
+	ld	c,0A
+	ld	hl,D0E0
+	:B645
+	ld	a,(hl)
+	rrca
+	xor	a,5C
+	add	a,1E
+	call	B673
+	xor	b
+	ld	b,a
+	ldi	(hl),a
+	dec	c
+	jr	nz,B645
+	pop	bc
+	ret
+}
+
+tableLookupB673()
+{
+	push	hl
+	push	bc
+	ld	hl,B680
+	ld	b,00
+	ld	c,a
+	add	hl,bc
+	ld	a,(hl)
+	pop	bc
+	pop	hl
+	ret
+}
