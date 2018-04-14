@@ -1,5 +1,9 @@
-//Made by Runea.
-const TABLE: [u8; 256] = [
+//Made by Runea
+type Image = [u8; 128];
+type Input = [u8; 10];
+type Table = [u8; 256];
+
+const TABLE: Table = [
     0x6D, 0xE5, 0x9A, 0x4C, 0xC7, 0x35, 0x1A, 0x3B, 0x78, 0xFB, 0x02, 0x84, 0x7B, 0x4B, 0x4A, 0xC0,
     0x6C, 0x9B, 0x36, 0x1F, 0x34, 0x4D, 0xCE, 0x24, 0xB9, 0xE0, 0x29, 0x54, 0x99, 0x67, 0x19, 0x21,
     0x73, 0xCB, 0x57, 0x46, 0x2F, 0xDF, 0x5E, 0x43, 0x72, 0x7A, 0x28, 0xB0, 0x0F, 0xF6, 0x49, 0xE2,
@@ -17,7 +21,8 @@ const TABLE: [u8; 256] = [
     0x55, 0x1C, 0xDC, 0xEB, 0xAE, 0xF1, 0xA6, 0xCA, 0x6F, 0x5B, 0x9F, 0x16, 0x9C, 0xCF, 0xB6, 0xEE,
     0x39, 0xA9, 0x2A, 0x68, 0x37, 0xFA, 0x5D, 0x83, 0x00, 0x2D, 0xED, 0x2E, 0x2B, 0xE7, 0xBD, 0xC3,
 ];
-const IMAGE: [u8; 128] = [
+
+const IMAGE: Image = [
     0x7D, 0xBC, 0x5D, 0x92, 0xC7, 0x66, 0xFB, 0x16, 0xB3, 0xC7, 0x25, 0x39, 0x07, 0x65, 0xE4, 0x00,
     0x2E, 0xCE, 0xBC, 0xA8, 0xDF, 0x6A, 0x85, 0xE7, 0x8E, 0x5E, 0x49, 0x51, 0xD9, 0x8E, 0xFC, 0x5C,
     0xD5, 0xCA, 0x3E, 0x0E, 0x90, 0xF8, 0x6A, 0x3E, 0x38, 0xC1, 0xBE, 0x33, 0xDC, 0x4B, 0xCE, 0x04,
@@ -28,32 +33,118 @@ const IMAGE: [u8; 128] = [
     0x9F, 0x60, 0x8D, 0x79, 0xAB, 0x73, 0xF8, 0x12, 0x98, 0xE1, 0x56, 0x62, 0x36, 0x9B, 0xDF, 0xE7,
 ];
 
+const TH: usize = 8; // threshold for the minimum amount of leading zeros the solution must start with
+const SEED: Input = [0xf6; 10]; // when input = "0000000000"
+
 fn main() {
-    // assume first ten bytes of result image are 0.
+    let starting_time = std::time::Instant::now(); // for time keeping.
+    let mut mc = 0;
+    loop {
+        for i in 0..mc + 10_000_000 {
+            let mut input = SEED;
+            let mut c = i + mc;
+            for n in (0..0x0a).rev() {
+                input[n] += (c % 10) as u8;
+                c /= 10;
+            }
+            for _ in 0..0x19 {
+                let mut b = input[9];
+                for n in input.iter_mut() {
+                    let mut a = *n;
+                    a = (a >> 1) | (a << 7);
+                    a = TABLE[(a ^ 0x5c).overflowing_add(0x1e).0 as usize] ^ b;
+                    b = a;
+                    *n = a;
+                }
+            }
 
-    let mut revtable = [0; 256]; // reverse table since its unique (phew)
-    for i in 0..256 {
-        revtable[TABLE[i] as usize] = i as u8; 
+            if IMAGE
+                .iter()
+                .zip((0..10).cycle())
+                .map(|(v, counter)| {
+                    let p = input[counter];
+                    input[counter] = TABLE[input[counter] as usize];
+                    p ^ v
+                })
+                .take_while(|&v| v == 0)
+                .count() > TH
+            {
+                println!("dat key: {}", i + mc);
+                println!("final time: {}secs", starting_time.elapsed().as_secs());
+                return;
+            }
+        }
+        println!(
+            "nothing found before {}0_000_000, time: {} secs",
+            mc,
+            starting_time.elapsed().as_secs()
+        );
+        mc += 1;
     }
+}
 
-    let mut inp: Vec<u8> = IMAGE[0..10].iter().cloned().collect(); // since the first ten bytes of image are xor with input to generate 0, image == input;
+/* BEFORE CLEANUP
 
-    for _ in 0..0x19 {
-        for i in (0..10).rev() {
-            let mut a = inp[i]; // literally reversing works, which is fun
-            a ^= inp[(i+9)%10];
-            a = revtable[a as usize];
-            a = a.overflowing_sub(0x1e).0;
-            a ^= 0x5c;
-            a = a.rotate_left(1);
-            inp[i] = a;
+fn main() {
+    let now = std::time::Instant::now();
+    let mut ret = 0;
+    // start from 60000_00000 for solution in under 600 secs (on my machine)
+    for i in 0..1_00000_00000u64 {
+        let mut input = SEED;
+        let mut c = i;
+
+        for n in (0..0x0a).rev() {
+            // modified to look like the python one
+            input[n] += (c % 10) as u8;
+            c /= 10;
+        }
+
+        for _ in 0..0x19 {
+            input = shuffle_input(input);
+        }
+        let image = decoding(input, IMAGE);
+
+        if image.iter().take_while(|&v| *v == 0).count() > TH {
+            ret = i;
+            break;
+        }
+        if i % 10_000_000 == 0 {
+            println!(
+                "nothing below {}0_000_000, {} secs",
+                i / 10_000_000,
+                now.elapsed().as_secs()
+            );
         }
     }
-
-    for i in 0..10 {
-        inp[i] -= 0xf6;
-    }
-
-    println!("{:?}", inp);
-    
+    println!("dat key: {}", ret);
+    println!("time: {}secs", now.elapsed().as_secs());
 }
+
+fn shuffle_input(mut input: Input) -> Input {
+    let mut b = input[9];
+    for i in input.iter_mut() {
+        let mut a = *i;
+        a = (a >> 1) | (a << 7); // 'fix' copied from python code. everything else was mostly like this before.
+        a ^= 0x5c;
+        a = a.overflowing_add(0x1e).0;
+        a = TABLE[a as usize];
+        a ^= b;
+        b = a;
+        *i = a;
+    }
+    input
+}
+
+fn decoding(mut input: Input, mut image: Image) -> Image {
+    let mut counter = 0;
+    for p in image.iter_mut() {
+        *p ^= input[counter];
+        input[counter] = TABLE[input[counter] as usize];
+        counter = (counter + 1) % 10;
+    }
+    image
+}
+
+// for you cheaters: 6830672995
+
+*/
