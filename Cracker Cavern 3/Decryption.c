@@ -263,4 +263,4 @@ int alternate()		// Mai kinda way, if you want images, just pipe the output to a
 	} while (key[0]);
 	return 0;
 }
-*/ 
+*/
