@@ -1,0 +1,4 @@
+#Forces C files to be viewed with tabs as four spaces.
+[*.c]
+indent_style = tab
+indent_size = 4
