@@ -1,16 +1,16 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <time.h>
+#include <stdlib.h> //Include the standard library.
+#include <stdio.h> //Include standard input and output library.
+#include <string.h> //Include string library.
+#include <time.h> //Include time library.
 
-typedef unsigned char bool;
-#define FALSE	0
-#define TRUE	!FALSE
+typedef unsigned char bool; //Define boolean type.
+#define FALSE	0 //In C, 0 is false. Setting this as my definition.
+#define TRUE	!FALSE //Anything not false is true.
 
-#define KEY_LENGTH		10
-#define IMAGE_LENGTH	128
-#define IMAGE_WIDTH		32
-#define IMAGE_HEIGHT	32
+#define KEY_LENGTH		10 //Key length for decryption is always 10.
+#define IMAGE_LENGTH	128 //Image length is always 128 bytes.
+#define IMAGE_WIDTH		32 //Image width is always 32 pixels.
+#define IMAGE_HEIGHT	32 //Image height is always 32 pixels.
 
 const unsigned char table[256] = { //256 byte table used during key manipulation.
 	0x6D, 0xE5, 0x9A, 0x4C, 0xC7, 0x35, 0x1A, 0x3B, 0x78, 0xFB, 0x02, 0x84, 0x7B, 0x4B, 0x4A, 0xC0,
@@ -42,73 +42,71 @@ const unsigned char original_image[IMAGE_LENGTH] = { //Bytecode of original imag
 
 bool incrementKey(unsigned char key_current_seed[])	//Increment the least significant value of the key and handle carry.
 {
-	bool reached_final_key = FALSE;					//Create a value to represent if we've reached the final key or not and set it to the default assumption. We return this later.
-	for(unsigned char i = 0; i < KEY_LENGTH; i++) 	//Iterate over the entire key.
+	bool reached_final_key = FALSE; //Create a value to represent if we've reached the final key or not and set it to the default assumption. We return this later.
+	for(unsigned char i = 0; i < KEY_LENGTH; i++) //Iterate over the entire key.
 	{
-		unsigned char index = KEY_LENGTH - (i + 1);	//We use this variable as the index for the seed, so we can go over it in reverse order. This keeps our for loop consistent with others in the program.
-		++key_current_seed[index];					//Increment the current seed digit.
-		if(key_current_seed[index] != 0x00) 		//If the increment didn't wraparound to 0 (C standard says unsigned addition will wraparound to 0),
+		unsigned char index = KEY_LENGTH - (i + 1); //We use this variable as the index for the seed, so we can go over it in reverse order. This keeps our for loop consistent with others in the program.
+		++key_current_seed[index]; //Increment the current seed digit.
+		if(key_current_seed[index] != 0x00) //If the increment didn't wraparound to 0 (C standard says unsigned addition will wraparound to 0),
 		{
-			reached_final_key = FALSE;				//we haven't reached the final value for the seed
-			break;									//and we exit the loop.
+			reached_final_key = FALSE; //we haven't reached the final value for the seed
+			break; //and we exit the loop.
 		}
-		key_current_seed[index] = 0xF6; 			//If we haven't exited the loop yet, set the value to an offset 0 and continue.
-		else if(index == 0)							//If this is the most significant digit in the seed,
+		key_current_seed[index] = 0xF6; //If we haven't exited the loop yet, set the value to an offset 0 and continue.
+		else if(index == 0) //If this is the most significant digit in the seed,
 		{
-			reached_final_key = TRUE;				//we've reached the final key
-			break;									//and we should exit the loop.
+			reached_final_key = TRUE; //we've reached the final key
+			break; //and we should exit the loop.
 		}
 	}
-	return reached_final_key;						//Return the result of our increment.
+	return reached_final_key; //Return the result of our increment.
 }
 
-void saveFinishedImage(unsigned char rgb_image[], unsigned char key_current_seed[])	//Save an image to disk with the name of the seed used to generate it.
+void saveFinishedImage(unsigned char rgb_image[], unsigned char key_current_seed[])//Save an image to disk with the name of the seed used to generate it.
 {
-	char file_name[KEY_LENGTH + 5];													//Create a string we'll use to store the seed we used for this image. We add five bytes to the buffer for the file extension and a terminator.
-																					//We can't use the old string, because it has a different purpose, different size, and it isn't terminated.
-	FILE *file_pointer = NULL;														//Create a file pointer we'll use later to save the image.
-	const char *file_extension = ".ppm";											//Create a string for the file extension we're using. We'll use this to help save the image later.
-	for(unsigned char i = 0; i < KEY_LENGTH; i++)									//Iterate over the seed.
+	char file_name[KEY_LENGTH + 5]; //Create a string we'll use to store the seed we used for this image. We add five bytes to the buffer for the file extension and a terminator.
+	//We can't use the old string, because it has a different purpose, different size, and it isn't terminated. C requires a terminated string to use standard string functions.
+	FILE *file_pointer = NULL; //Create a file pointer we'll use later to save the image.
+	const char *file_extension = ".ppm"; //Create a string for the file extension we're using. We'll use this to help save the image later.
+	for(unsigned char i = 0; i < KEY_LENGTH; i++) //Iterate over the seed.
 	{
-		unsigned char temp_value;													//Temporary value to hold the seed's digit.
-		temp_value = key_current_seed[i];											//Copy the seed digit to the temporary value.
-		temp_value -= 0xF6;															//Subtract the offset from the value to get the "real" value of that digit.
-		file_name[i] = (char)temp_value + '0';										//Write the number to the string, offset by the ASCII table instead.
+		unsigned char temp_value; //Temporary value to hold the seed's digit.
+		temp_value = key_current_seed[i]; //Copy the seed digit to the temporary value.
+		temp_value -= 0xF6; //Subtract the offset from the value to get the "real" value of that digit.
+		file_name[i] = (char)temp_value + '0'; //Write the number to the string, offset by the ASCII table instead.
 	}
-	file_name[KEY_LENGTH] = '\0';													//Terminate the new string at this location.
-	strcat(file_name, file_extension);		 										//Convert our newly terminated filename string into an actual filename. Since it's terminated, we can use a standard library function.
-	file_pointer = fopen(file_name, "wb");				  							//Open the file "[seed].ppm" to write in binary mode.
-	fprintf(file_pointer, "P6\n %d\n %d\n 255\n", IMAGE_WIDTH, IMAGE_HEIGHT);		//Write magic number for .ppm file, image width, image height, and max intensity.
-	fwrite(rgb_image, 3072, 1, file_pointer);										//Write the image data.
-	fclose(file_pointer);															//Close the file.
-	printf("Finished saving %s.\n", file_name);										//Write diagnostic information.
-	return;																			//Return to caller.
+	file_name[KEY_LENGTH] = '\0'; //Terminate the new string at this location.
+	strcat(file_name, file_extension); //Convert our newly terminated filename string into an actual filename. Since it's terminated, we can use a standard library function.
+	file_pointer = fopen(file_name, "wb"); //Open the file "[seed].ppm" to write in binary mode.
+	fprintf(file_pointer, "P6\n %d\n %d\n 255\n", IMAGE_WIDTH, IMAGE_HEIGHT); //Write magic number for .ppm file, image width, image height, and max intensity.
+	fwrite(rgb_image, 3072, 1, file_pointer); //Write the image data.
+	fclose(file_pointer); //Close the file.
+	printf("Finished saving %s.\n", file_name); //Write diagnostic information.
+	return; //Return to caller.
 }
 
 void convertImageToRGB(unsigned char monochrome_image[], unsigned char rbg_image[]) //Convert the image from the decoded, monochrome format to an RGB string.
-{																					//The original monochrome bitstream image is split into a group of 64 bits to create an 8x8 tile, which all form into a 4x4 tileset.
-	for(unsigned char image_index = 0; image_index < IMAGE_LENGTH; image_index++)	//Iterate over the monochrome bitfield, one byte at a time.
-	{
-																					//We can use bit arithmetic on the image_index to determine where exactly we should be writing to, as we go through the monochrome image byte-by-byte.
-		unsigned char tile_row = image_index % 8;									//The first three least significant bits are the row in the current tile we're reading. Each row of a tile is a single byte.
-		unsigned char x_tile = (image_index >> 3) % 4;								//The next two bits are the x coordinate of current tile in the tileset we're reading from
-		unsigned char y_tile = image_index >> 5;									//Then the next two are the same for y.
-																					//The eighth bit is ignored, since we're normally only iterating to 127.
+{	//The original monochrome bitstream image is split into a group of 64 bits to create an 8x8 tile, which all form into a 4x4 tileset.
+	for(unsigned char image_index = 0; image_index < IMAGE_LENGTH; image_index++) //Iterate over the monochrome bitfield, one byte at a time.
+	{//We can use bit arithmetic on the image_index to determine where exactly we should be writing to, as we go through the monochrome image byte-by-byte.
+		unsigned char tile_row = image_index % 8; //The first three least significant bits are the row in the current tile we're reading. Each row of a tile is a single byte.
+		unsigned char x_tile = (image_index >> 3) % 4; //The next two bits are the x coordinate of current tile in the tileset we're reading from
+		unsigned char y_tile = image_index >> 5; //Then the next two are the same for y.
+		//The eighth bit is ignored, since we're normally only iterating to 127.
+		unsigned short memory_offset; //How many bytes we'd offset, if we were writing a greyscale image. This helps with getting our RGB offset later.
+		memory_offset = y_tile * IMAGE_WIDTH; //Move vertically down the image however many tiles.
+		memory_offset += x_tile; //Move horizontally to the right however many tiles.
+		memory_offset *= 8; //Offset by 8, since every tile has a width and height of 8 pixels.
+		memory_offset += tile_row * IMAGE_WIDTH;//Move down however many rows within the tile.
 		
-		unsigned short memory_offset;												//How many bytes we'd offset, if we were writing a greyscale image. This helps with getting our RGB offset later.
-		memory_offset = y_tile * IMAGE_WIDTH;										//Move vertically down the image however many tiles.
-		memory_offset += x_tile;													//Move horizontally to the right however many tiles.
-		memory_offset *= 8;															//Offset by 8, since every tile has a width and height of 8 pixels.
-		memory_offset += tile_row * IMAGE_WIDTH;									//Move down however many rows within the tile.
-		
-		for(unsigned char bit = 0; bit < 8; bit++)									//Iterate over all the bits in this byte.
+		for(unsigned char bit = 0; bit < 8; bit++) //Iterate over all the bits in this byte.
 		{
-			unsigned short offset_to_write = (memory_offset + bit) * 3;				//Using how many bytes we'd offset writing a greyscale image, we can multiply that by 3 to get our offset for writing an RGB image.
-			unsigned char bit_check = 0x80;											//Flag the most significant bit,
-			bit_check >>= bit;														//then shift to the one we're actually checking.
-			bool is_black = monochrome_image[image_index] & bit_check;				//Check if the monochrome value we're checking is black. Black is 1. Yes, it's weird.
-			unsigned char value_to_write = (is_black) ? 0 : 255; 					//If it's black, write 0. Otherwise, 0.
-			for(unsigned char color = 0; color < 3; color++)						//Write values for red, green, and blue to make either black or white.
+			unsigned short offset_to_write = (memory_offset + bit) * 3;//Using how many bytes we'd offset writing a greyscale image, we can multiply that by 3 to get our offset for writing an RGB image.
+			unsigned char bit_check = 0x80; //Flag the most significant bit,
+			bit_check >>= bit; //then shift to the one we're actually checking.
+			bool is_black = monochrome_image[image_index] & bit_check; //Check if the monochrome value we're checking is black. Black is 1. Yes, it's weird.
+			unsigned char value_to_write = (is_black) ? 0 : 255; //If it's black, write 0. Otherwise, 255.
+			for(unsigned char color = 0; color < 3; color++) //Write values for red, green, and blue to make either black or white.
 			{
 				rbg_image[offset_to_write + color] = value_to_write;
 			}
@@ -134,102 +132,102 @@ void convertImageToRGB(unsigned char monochrome_image[], unsigned char rbg_image
 	return;
 }
 
-void decodeImage(unsigned char monochrome_image[], unsigned char key_buffer[])	//Decode the image using an already manipulated key.
+void decodeImage(unsigned char monochrome_image[], unsigned char key_buffer[]) //Decode the image using an already manipulated key.
 {
-	for(unsigned char index = 0; index < IMAGE_LENGTH; index++)					//Iterate over the image.
+	for(unsigned char index = 0; index < IMAGE_LENGTH; index++) //Iterate over the image.
 	{
-		unsigned char key_index = index % KEY_LENGTH;							//Key_index is just the index modulo the key length.
-		monochrome_image[index] ^= key_buffer[key_index];						//Bitwise OR.
-		key_buffer[key_index] = table[key_buffer[key_index]];					//Take value from key_buffer to use for next time modulo key length equals this key index.
+		unsigned char key_index = index % KEY_LENGTH; //Key_index is just the index modulo the key length.
+		monochrome_image[index] ^= key_buffer[key_index]; //Bitwise OR.
+		key_buffer[key_index] = table[key_buffer[key_index]]; //Take value from key_buffer to use for next time modulo key length equals this key index.
 	}
-	return;																		//After iterating over the image, we're done.
+	return; //After iterating over the image, we're done.
 }
 
-unsigned char rrc(unsigned char to_shift) 			//Rotate right with carry.
+unsigned char rrc(unsigned char to_shift) //Rotate right with carry.
 {
-	unsigned char shifted_right = to_shift >> 1;	//Shift right one.
-	unsigned char carry = to_shift << 7;			//This is the carry from the shift, since it's a rotate. Shift left seven.
-	carry &= 0x80;									//Eliminate all bits except the highest one by ANDing with 10000000. Just to make doubly sure and all.
-	unsigned char result = shifted_right | carry;	//OR them together to combine them.
-	return result;									//Return the result of our rotation.
+	unsigned char shifted_right = to_shift >> 1; //Shift right one.
+	unsigned char carry = to_shift << 7; //This is the carry from the shift, since it's a rotate. Shift left seven.
+	carry &= 0x80; //Eliminate all bits except the highest one by ANDing with 10000000. Just to make doubly sure and all.
+	unsigned char result = shifted_right | carry; //OR them together to combine them.
+	return result; //Return the result of our rotation.
 }
 
-void manipulateKey(unsigned char key_buffer[])
+void manipulateKey(unsigned char key_buffer[]) //Manipulate the key buffer before image decryption.
 {
-	unsigned char new_digit;							//Create a temporary value for the new digit well create in the loop.
-	unsigned char previous = key_buffer[9];				//The initial value for the previous value is the least significant bit.
-	for(unsigned char i = 0; i < 25; i++)				//Iterate over the key buffer 25 times.
+	unsigned char new_digit; //Create a temporary value for the new digit well create in the loop.
+	unsigned char previous = key_buffer[9]; //The initial value for the previous value is the least significant bit.
+	for(unsigned char i = 0; i < 25; i++) //Iterate over the key buffer 25 times.
 	{
-		for(unsigned char j = 0; j < KEY_LENGTH; j++)	//Iterate over every value in the buffer.
+		for(unsigned char j = 0; j < KEY_LENGTH; j++) //Iterate over every value in the buffer.
 		{
-			new_digit = key_buffer[j];					//Temporary value is equal to the current value being manipulated.
-			new_digit = rrc(new_digit);					//Rotate it right with carry.
-			new_digit ^= 0x5C;							//Bitwise OR it with 0x5C.
-			new_digit += 0x1E;							//Add 30 to the value.
-			new_digit = table[new_digit];				//Get value from table using the current value of new_digit as the offset.
-			new_digit ^= previous;						//OR the value from the table with the previous loop's value.
-			previous = new_digit;						//Make the new previous value the value of the new digit
-			key_buffer[j] = new_digit;					//and store the new digit in the key buffer for the next set of loops.
+			new_digit = key_buffer[j]; //Temporary value is equal to the current value being manipulated.
+			new_digit = rrc(new_digit); //Rotate it right with carry.
+			new_digit ^= 0x5C; //Bitwise OR it with 0x5C.
+			new_digit += 0x1E; //Add 30 to the value.
+			new_digit = table[new_digit]; //Get value from table using the current value of new_digit as the offset.
+			new_digit ^= previous; //OR the value from the table with the previous loop's value.
+			previous = new_digit; //Make the new previous value the value of the new digit
+			key_buffer[j] = new_digit; //and store the new digit in the key buffer for the next set of loops.
 		}
 	}
 	return;
 }
 
-void attemptDecrypt(unsigned char key_current_seed[], unsigned char monochrome_image[])	//Attempt to decrypt the current key and output a monochrome image.
+void attemptDecrypt(unsigned char key_current_seed[], unsigned char monochrome_image[]) //Attempt to decrypt the current key and output a monochrome image.
 {
-	unsigned char key_buffer[KEY_LENGTH];												//Create a temporary buffer to manipulate the key and decode the image with.
-	for(unsigned char i = 0; i < KEY_LENGTH; i++) 										//Iterate over all digits of the key,
+	unsigned char key_buffer[KEY_LENGTH]; //Create a temporary buffer to manipulate the key and decode the image with.
+	for(unsigned char i = 0; i < KEY_LENGTH; i++) //Iterate over all digits of the key,
 	{
-		key_buffer[i] = key_current_seed[i];											//and assign them to a temporary buffer.
+		key_buffer[i] = key_current_seed[i]; //and assign them to a temporary buffer.
 	}
 
-	manipulateKey(key_buffer);															//Manipulate the temporary buffer.
-	decodeImage(monochrome_image, key_buffer);											//Decode the image.
+	manipulateKey(key_buffer); //Manipulate the temporary buffer.
+	decodeImage(monochrome_image, key_buffer); //Decode the image.
 	return;
 }
 
-int main()															//Entry point for the whole program.
+int main() //Entry point for the whole program.
 {
-	time_t start = time(NULL);          							//Set the start time.
-	time_t end;														//Create the variable for the end time for a comparison later.
+	time_t start = time(NULL); //Set the start time.
+	time_t end; //Create the variable for the end time for a comparison later.
 
-	unsigned char key_current_seed[KEY_LENGTH]; 					//Create the buffer for the seed we'll use every loop.
-	for (unsigned char i = 0; i < KEY_LENGTH; i++)					//Iterate over the key buffer
+	unsigned char key_current_seed[KEY_LENGTH]; //Create the buffer for the seed we'll use every loop.
+	for (unsigned char i = 0; i < KEY_LENGTH; i++) //Iterate over the key buffer
 	{
-		key_current_seed[i] = 0xF6; 								//and initialize it with the default seed.
+		key_current_seed[i] = 0xF6; //and initialize it with the default seed.
 	}
 
 	//unsigned char key_current_seed[KEY_LENGTH] = {0xFC, 0xFE, 0xF9, 0xF6, 0xFC, 0xFD, 0xF8, 0xFF, 0xFF, 0xFB}; //Replaces previous section. Correct key.
 
-	bool reached_final_key = FALSE;									//Create a flag to check if we've reached the final key and initialize it to the default value.
-	unsigned char monochrome_image[IMAGE_LENGTH];					//Create a buffer for a monochrome image we'll use very soon.
-	unsigned char rgb_image[3072];									//Create a buffer we'll use to save the image when we convert it from monochrome to RGB.
+	bool reached_final_key = FALSE; //Create a flag to check if we've reached the final key and initialize it to the default value.
+	unsigned char monochrome_image[IMAGE_LENGTH]; //Create a buffer for a monochrome image we'll use very soon.
+	unsigned char rgb_image[3072]; //Create a buffer we'll use to save the image when we convert it from monochrome to RGB.
 	printf("Starting the main loop...\n");
-	while(TRUE)
+	while(TRUE) //Infinite loop that we'll break out of eventually.
 	{
-		for(unsigned char i = 0; i < IMAGE_LENGTH; i++)				//Populate buffer for monochrome image with the original image.
+		for(unsigned char i = 0; i < IMAGE_LENGTH; i++) //Populate buffer for monochrome image with the original image.
 		{
 			monochrome_image[i] = original_image[i];
 		}
-		attemptDecrypt(key_current_seed, monochrome_image);			//Attempt to decrypt the current key and write it to the image buffer.
-		convertImageToRGB(monochrome_image, rgb_image);				//Convert the binary black/white string to an RGB string.
-		saveFinishedImage(rgb_image, key_current_seed);				//Save the image to disk with the name of the seed used.
-		reached_final_key = incrementKey(key_current_seed);			//Increment the key and check whether or not we've tried to decrypt with the final key.
-		if(reached_final_key == TRUE)								//If we've reached the final value,
+		attemptDecrypt(key_current_seed, monochrome_image); //Attempt to decrypt with the current key and write it to the image buffer.
+		convertImageToRGB(monochrome_image, rgb_image); //Convert the binary black/white string to an RGB string.
+		saveFinishedImage(rgb_image, key_current_seed); //Save the image to disk with the name of the seed used.
+		reached_final_key = incrementKey(key_current_seed); //Increment the key and check whether or not we've tried to decrypt with the final key.
+		if(reached_final_key == TRUE) //If we've reached the final value,
 		{
-			break;													//stop the main loop.
+			break; //stop the main loop.
 		}
 	}
 	end = time(NULL);
-	printf("Execution took %.0f seconds.\n", difftime(end, start));	//Calculate the difference between the values and print it. Since it's a float that's not counting decimals, we truncate the decimals for display.
+	printf("Execution took %.0f seconds.\n", difftime(end, start)); //Calculate the difference between the values and print it. Since it's a float that's not counting decimals, we truncate the decimals for display.
 	printf("Press enter to continue...");
-	getchar();														//Wait for user input before we finish, so the user can read how long things took and verify the output.
-	return EXIT_SUCCESS;											//Return successfully.
+	getchar(); //Wait for user input before we finish, so the user can read how long things took and verify the output.
+	return EXIT_SUCCESS; //Return successfully.
 }
 
 /*
-int alternate()		// Mai kinda way, if you want images, just pipe the output to a file.
-{					// idea is you pipe the output to a file, then use regex to look for patterns. UNIX!
+int alternate() // Mai kinda way, if you want images, just pipe the output to a file.
+{	// idea is you pipe the output to a file, then use regex to look for patterns. UNIX!
 	unsigned char key[KEY_LENGTH] = {0xF6, 0xF6, 0xF6, 0xF6, 0xF6, 0xF6, 0xF6, 0xF6, 0xF6, 0xF6};
 	unsigned char image[IMAGE_LENGTH];
 	do
