@@ -109,7 +109,7 @@ void saveFinishedImage(unsigned char rgb_image[], unsigned char key_current_seed
 }
 
 void convertImageToRGB(unsigned char monochrome_image[], unsigned char rbg_image[]) //Convert the image from the decoded, monochrome format to an RGB string.
-{	//The original monochrome bitstream image is split into a group of 64 bits to create an 8x8 tile, which all form into a 4x4 tileset.
+{	//The original monochrome bitstream image is split into groups of 64 bits to create 8x8 tiles, which all form into a 4x4 tileset.
 	for(unsigned char image_index = 0; image_index < IMAGE_LENGTH; image_index++) //Iterate over the monochrome bitfield, one byte at a time.
 	unsigned short memory_offset; //How many bytes we'd offset, if we were writing a greyscale image. This helps with getting our RGB offset later.
 	{//We can use bit arithmetic on the image_index to determine where exactly we should be writing to every loop.
